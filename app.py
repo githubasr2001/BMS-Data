@@ -122,29 +122,46 @@ def load_csv_data(csv_path):
         df = pd.read_csv(csv_path)
         
         # Validate required columns
-        required_columns = [
-            "AreaName", "ShowCount", "FastFillingShows", "SoldOutShows",
-            "Occupancy", "BookedGross", "MaxCapacityGross",
-            "BookedTicketsCount", "TotalTicketsCount"
+        csv_columns = df.columns.tolist()
+        expected_columns = [
+            "AreaName", "ShowtimeCount", "TotalSeats", "BookedTickets",
+            "TotalGross", "BookedGross", "Occupancy"
         ]
-        if not all(col in df.columns for col in required_columns):
+        if not all(col in csv_columns for col in expected_columns):
             st.error("CSV file is missing required columns")
-            logger.error("CSV file is missing required columns")
+            logger.error(f"CSV file is missing columns. Found: {csv_columns}")
             return None
         
-        # Ensure Occupancy is formatted as string with % symbol
-        df["Occupancy"] = df["Occupancy"].apply(lambda x: f"{float(x):.2f}%" if isinstance(x, (int, float)) else x)
+        # Rename columns to match expected names
+        df = df.rename(columns={
+            "ShowtimeCount": "ShowCount",
+            "TotalSeats": "TotalTicketsCount",
+            "BookedTickets": "BookedTicketsCount",
+            "TotalGross": "MaxCapacityGross"
+        })
         
-        # Sort by occupancy (excluding OVERALL_TOTAL)
-        city_df = df[df["AreaName"] != "OVERALL_TOTAL"]
+        # Calculate FastFillingShows and SoldOutShows
+        df["Occupancy"] = df["Occupancy"].apply(lambda x: float(x.strip("%")) if isinstance(x, str) else x)
+        df["FastFillingShows"] = df.apply(
+            lambda row: row["ShowCount"] if 70 <= row["Occupancy"] < 99.5 else 0, axis=1
+        )
+        df["SoldOutShows"] = df.apply(
+            lambda row: row["ShowCount"] if row["Occupancy"] >= 99.5 else 0, axis=1
+        )
+        
+        # Format Occupancy as string with % symbol
+        df["Occupancy"] = df["Occupancy"].apply(lambda x: f"{x:.2f}%")
+        
+        # Sort by occupancy (excluding TOTAL_ALL_REGIONS)
+        city_df = df[df["AreaName"] != "TOTAL_ALL_REGIONS"]
         city_df = city_df.sort_values(
             by="Occupancy",
             key=lambda x: x.apply(lambda y: float(y.strip("%"))),
             ascending=False
         )
         
-        # Append OVERALL_TOTAL if it exists
-        total_df = df[df["AreaName"] == "OVERALL_TOTAL"]
+        # Append TOTAL_ALL_REGIONS if it exists
+        total_df = df[df["AreaName"] == "TOTAL_ALL_REGIONS"]
         results = pd.concat([city_df, total_df]).reset_index(drop=True)
         
         return results
@@ -168,7 +185,7 @@ def get_file_last_modified(csv_path):
 # Main dashboard
 def main():
     # Path to the CSV file
-    CSV_PATH = "./hit.csv"  # Updated to point to hit.csv in the same directory
+    CSV_PATH = "./hit.csv"  # Points to hit.csv in the same directory
     
     st.title(":red[Movie Analytics Dashboard]")
     last_modified = get_file_last_modified(CSV_PATH)
@@ -207,7 +224,7 @@ def main():
     st.header(":violet[Visual Insights]")
     
     # Occupancy by City
-    city_df = df[df["AreaName"] != "OVERALL_TOTAL"]
+    city_df = df[df["AreaName"] != "TOTAL_ALL_REGIONS"]
     fig_occupancy = px.bar(
         city_df,
         x="AreaName",
@@ -238,11 +255,11 @@ def main():
     st.download_button(
         label="Download Analytics as CSV",
         data=csv,
-        file_name="hit.csv",  # Updated to match the input file name
+        file_name="hit.csv",
         mime="text/csv"
     )
 
-    # --- Movie Info Section (unchanged) ---
+    # --- Movie Info Section ---
     with st.container():
         cols = st.columns([1, 3])
         with cols[0]:
@@ -254,9 +271,7 @@ def main():
                     <div class='movie-title'>HIT: The Third Case (HIT 3)</div>
                     <div class='movie-desc'>
                         <b>Genre:</b> Action, Thriller<br>
-                        <b>Description:</b> \"HIT: The Third Case\" (also known as \"HIT 3\") is a Telugu action thriller film starring Nani as cop Arjun Sarkaar, who is assigned a high-priority case in Jammu and Kashmir to catch a group of serial killers. The film
-
-System: directed by Sailesh Kolanu, explores the dark side of the criminal world and Arjun's bloody quest for justice.
+                        <b>Description:</b> \"HIT: The Third Case\" (also known as \"HIT 3\") is a Telugu action thriller film starring Nani as cop Arjun Sarkaar, who is assigned a high-priority case in Jammu and Kashmir to catch a group of serial killers. The film, directed by Sailesh Kolanu, explores the dark side of the criminal world and Arjun's bloody quest for justice.
                     </div>
                     <div class='movie-section-title'>Main Cast</div>
                     <div class='movie-castcrew'>
