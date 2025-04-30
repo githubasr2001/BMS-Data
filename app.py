@@ -193,7 +193,8 @@ def main():
         st.error("Failed to load data. Please ensure the CSV file is available and correctly formatted.")
         return
 
-    cols = st.columns(4)
+    # Display Key Metrics with 5 columns
+    cols = st.columns(5)
     with cols[0]:
         st.markdown(f"<div class='metric-card'><h3>Total Shows</h3><p>{df.iloc[-1]['ShowCount']}</p></div>", unsafe_allow_html=True)
     with cols[1]:
@@ -201,6 +202,8 @@ def main():
     with cols[2]:
         st.markdown(f"<div class='metric-card'><h3>Booked Tickets</h3><p>{df.iloc[-1]['BookedTicketsCount']}</p></div>", unsafe_allow_html=True)
     with cols[3]:
+        st.markdown(f"<div class='metric-card'><h3>Booked Gross</h3><p>₹{df.iloc[-1]['BookedGross']:.2f}</p></div>", unsafe_allow_html=True)
+    with cols[4]:
         st.markdown(f"<div class='metric-card'><h3>Overall Occupancy</h3><p>{df.iloc[-1]['Occupancy']}</p></div>", unsafe_allow_html=True)
 
     # --- Detailed Analytics Section ---
