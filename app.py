@@ -176,7 +176,7 @@ def get_file_last_modified(csv_path):
 # Main dashboard
 def main():
     # Path to the CSV file
-    CSV_PATH = "./hit1.csv"  # Points to hit.csv in the same directory
+    CSV_PATH = "./hit2.csv"  # Points to hit.csv in the same directory
     
     st.title(":red[Movie Analytics Dashboard]")
     last_modified = get_file_last_modified(CSV_PATH)
