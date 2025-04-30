@@ -122,35 +122,26 @@ def load_csv_data(csv_path):
         df = pd.read_csv(csv_path)
         
         # Validate required columns
-        csv_columns = df.columns.tolist()
-        expected_columns = [
-            "AreaName", "ShowtimeCount", "TotalSeats", "BookedTickets",
-            "TotalGross", "BookedGross", "Occupancy"
+        required_columns = [
+            "AreaName", "VenueCount", "ShowtimeCount", "TotalSeats",
+            "BookedTickets", "TicketsSold", "TotalGross", "BookedGross", "Occupancy"
         ]
-        if not all(col in csv_columns for col in expected_columns):
+        if not all(col in df.columns for col in required_columns):
             st.error("CSV file is missing required columns")
-            logger.error(f"CSV file is missing columns. Found: {csv_columns}")
+            logger.error(f"CSV file is missing columns. Found: {df.columns.tolist()}")
             return None
         
-        # Rename columns to match expected names
+        # Rename columns to match app's expectations
         df = df.rename(columns={
             "ShowtimeCount": "ShowCount",
             "TotalSeats": "TotalTicketsCount",
             "BookedTickets": "BookedTicketsCount",
-            "TotalGross": "MaxCapacityGross"
+            "TotalGross": "MaxCapacityGross",
+            "TicketsSold": "TicketsSoldCount"
         })
         
-        # Calculate FastFillingShows and SoldOutShows
-        df["Occupancy"] = df["Occupancy"].apply(lambda x: float(x.strip("%")) if isinstance(x, str) else x)
-        df["FastFillingShows"] = df.apply(
-            lambda row: row["ShowCount"] if 70 <= row["Occupancy"] < 99.5 else 0, axis=1
-        )
-        df["SoldOutShows"] = df.apply(
-            lambda row: row["ShowCount"] if row["Occupancy"] >= 99.5 else 0, axis=1
-        )
-        
         # Format Occupancy as string with % symbol
-        df["Occupancy"] = df["Occupancy"].apply(lambda x: f"{x:.2f}%")
+        df["Occupancy"] = df["Occupancy"].apply(lambda x: f"{float(x.strip('%')):.2f}%" if isinstance(x, str) else f"{x:.2f}%")
         
         # Sort by occupancy (excluding TOTAL_ALL_REGIONS)
         city_df = df[df["AreaName"] != "TOTAL_ALL_REGIONS"]
@@ -206,9 +197,9 @@ def main():
     with cols[0]:
         st.markdown(f"<div class='metric-card'><h3>Total Shows</h3><p>{df.iloc[-1]['ShowCount']}</p></div>", unsafe_allow_html=True)
     with cols[1]:
-        st.markdown(f"<div class='metric-card'><h3>Fast-Filling Shows</h3><p>{df.iloc[-1]['FastFillingShows']}</p></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='metric-card'><h3>Total Venues</h3><p>{df.iloc[-1]['VenueCount']}</p></div>", unsafe_allow_html=True)
     with cols[2]:
-        st.markdown(f"<div class='metric-card'><h3>Sold-Out Shows</h3><p>{df.iloc[-1]['SoldOutShows']}</p></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='metric-card'><h3>Booked Tickets</h3><p>{df.iloc[-1]['BookedTicketsCount']}</p></div>", unsafe_allow_html=True)
     with cols[3]:
         st.markdown(f"<div class='metric-card'><h3>Overall Occupancy</h3><p>{df.iloc[-1]['Occupancy']}</p></div>", unsafe_allow_html=True)
 
@@ -217,7 +208,12 @@ def main():
     st.dataframe(df.style.format({
         "BookedGross": "₹{:.2f}",
         "MaxCapacityGross": "₹{:.2f}",
-        "Occupancy": "{}"
+        "Occupancy": "{}",
+        "VenueCount": "{:.0f}",
+        "ShowCount": "{:.0f}",
+        "TotalTicketsCount": "{:.0f}",
+        "BookedTicketsCount": "{:.0f}",
+        "TicketsSoldCount": "{:.0f}"
     }), use_container_width=True)
 
     # --- Visual Insights Section ---
