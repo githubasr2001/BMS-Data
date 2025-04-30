@@ -1,13 +1,10 @@
 import streamlit as st
-import requests
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
-import uuid
-import time
+import os
 import logging
-import random
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -21,7 +18,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Enhanced Custom CSS for a deeper dark theme and brighter text
+# Enhanced Custom CSS (unchanged)
 st.markdown("""
     <style>
     .main, .stApp {
@@ -112,208 +109,82 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# City configurations
-CITIES = {
-    "Hyderabad": {
-        "regionCode": "HYD",
-        "subRegionCode": "HYD",
-        "regionSlug": "hyderabad",
-        "latitude": "17.385044",
-        "longitude": "78.486671"
-    },
-    "Bangalore": {
-        "regionCode": "BANG",
-        "subRegionCode": "BANG",
-        "regionSlug": "bangalore",
-        "latitude": "12.9716",
-        "longitude": "77.5946"
-    },
-    "Chennai": {
-        "regionCode": "CHEN",
-        "subRegionCode": "CHEN",
-        "regionSlug": "chennai",
-        "latitude": "13.0827",
-        "longitude": "80.2707"
-    }
-}
-
-# Function to implement exponential backoff
-def retry_with_backoff(retries=3, backoff_in_seconds=1):
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            x = 0
-            while True:
-                try:
-                    return func(*args, **kwargs)
-                except requests.exceptions.RequestException as e:
-                    if x == retries:
-                        raise e
-                    sleep = (backoff_in_seconds * 2 ** x + 
-                            random.uniform(0, 1))
-                    time.sleep(sleep)
-                    x += 1
-        return wrapper
-    return decorator
-
-# Function to fetch showtimes with new caching and retry logic
-@st.cache_data(ttl=1800)
-@retry_with_backoff(retries=3)
-def fetch_showtimes(city):
-    url = f"https://in.bookmyshow.com/api/movies-data/showtimes-by-event?appCode=MOBAND2&appVersion=14304&language=en&eventCode=ET00410905&regionCode={city['regionCode']}&subRegion={city['subRegionCode']}&bmsId=1.21345445.1703250084656&token=67x1xa33b4x422b361ba&lat={city['latitude']}&lon={city['longitude']}&query="
-    
-    headers = {
-        "Host": "in.bookmyshow.com",
-        "x-bms-id": "1.21345445.1703250084656",
-        "x-region-code": city["regionCode"],
-        "x-subregion-code": city["subRegionCode"],
-        "x-region-slug": city["regionSlug"],
-        "x-platform": "AND",
-        "x-platform-code": "ANDROID",
-        "x-app-code": "MOBAND2",
-        "x-device-make": "Google-Pixel XL",
-        "x-screen-height": "2392",
-        "x-screen-width": "1440",
-        "x-screen-density": "3.5",
-        "x-app-version": "14.3.4",
-        "x-app-version-code": "14304",
-        "x-network": "Android | WIFI",
-        "x-latitude": city["latitude"],
-        "x-longitude": city["longitude"],
-        "x-ab-testing": "adtechHPSlug=default",
-        "x-location-selection": "manual",
-        "x-location-shared": "false",
-        "lang": "en",
-        "user-agent": "Dalvik/2.1.0 (Linux; U; Android 12; Pixel XL Build/SP2A.220505.008)"
-    }
-    
+# Function to load and process CSV data
+def load_csv_data(csv_path):
     try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.HTTPError as e:
-        if e.response.status_code == 429:
-            st.error("⚠️ BookMyShow API rate limit reached. Please try again in a few minutes.")
-            logger.error(f"Rate limit exceeded for {city['regionSlug']}")
-        else:
-            st.error(f"⚠️ Failed to fetch data from BookMyShow API: {str(e)}")
-            logger.error(f"Error fetching showtimes for {city['regionSlug']}: {e}")
-        return None
+        # Check if file exists
+        if not os.path.exists(csv_path):
+            st.error(f"CSV file not found at {csv_path}")
+            logger.error(f"CSV file not found at {csv_path}")
+            return None
+        
+        # Read CSV
+        df = pd.read_csv(csv_path)
+        
+        # Validate required columns
+        required_columns = [
+            "AreaName", "ShowCount", "FastFillingShows", "SoldOutShows",
+            "Occupancy", "BookedGross", "MaxCapacityGross",
+            "BookedTicketsCount", "TotalTicketsCount"
+        ]
+        if not all(col in df.columns for col in required_columns):
+            st.error("CSV file is missing required columns")
+            logger.error("CSV file is missing required columns")
+            return None
+        
+        # Ensure Occupancy is formatted as string with % symbol
+        df["Occupancy"] = df["Occupancy"].apply(lambda x: f"{float(x):.2f}%" if isinstance(x, (int, float)) else x)
+        
+        # Sort by occupancy (excluding OVERALL_TOTAL)
+        city_df = df[df["AreaName"] != "OVERALL_TOTAL"]
+        city_df = city_df.sort_values(
+            by="Occupancy",
+            key=lambda x: x.apply(lambda y: float(y.strip("%"))),
+            ascending=False
+        )
+        
+        # Append OVERALL_TOTAL if it exists
+        total_df = df[df["AreaName"] == "OVERALL_TOTAL"]
+        results = pd.concat([city_df, total_df]).reset_index(drop=True)
+        
+        return results
+    
     except Exception as e:
-        st.error(f"⚠️ An unexpected error occurred: {str(e)}")
-        logger.error(f"Unexpected error for {city['regionSlug']}: {e}")
+        st.error(f"Error loading CSV file: {str(e)}")
+        logger.error(f"Error loading CSV file: {e}")
         return None
 
-# Function to process showtime data
-def process_showtime_data(area_name, data):
-    grand_total_max_seats = 0
-    grand_total_seats_available = 0
-    grand_total_booked_tickets = 0
-    grand_total_gross = 0
-    grand_booked_gross = 0
-    total_show_count = 0
-    fast_filling_show_count = 0
-    sold_out_show_count = 0
-    fast_filling_threshold = 70
-
-    if data and data.get("ShowDetails"):
-        for show_detail in data["ShowDetails"]:
-            if show_detail.get("Venues"):
-                for venue in show_detail["Venues"]:
-                    if venue.get("ShowTimes"):
-                        for show_time in venue["ShowTimes"]:
-                            total_show_count += 1
-                            total_max_seats = 0
-                            total_seats_available = 0
-                            total_booked_tickets = 0
-                            total_gross = 0
-                            booked_gross = 0
-
-                            if show_time.get("Categories"):
-                                for category in show_time["Categories"]:
-                                    max_seats = int(category.get("MaxSeats", 0)) or 0
-                                    seats_avail = int(category.get("SeatsAvail", 0)) or 0
-                                    booked_tickets = max_seats - seats_avail
-                                    current_price = float(category.get("CurPrice", 0)) or 0
-
-                                    total_max_seats += max_seats
-                                    total_seats_available += seats_avail
-                                    total_booked_tickets += booked_tickets
-                                    total_gross += max_seats * current_price
-                                    booked_gross += booked_tickets * current_price
-
-                            show_occupancy = (total_booked_tickets / total_max_seats * 100) if total_max_seats > 0 else 0
-                            if fast_filling_threshold <= show_occupancy < 100:
-                                fast_filling_show_count += 1
-                            if show_occupancy >= 99.5:
-                                sold_out_show_count += 1
-
-                            grand_total_max_seats += total_max_seats
-                            grand_total_seats_available += total_seats_available
-                            grand_total_booked_tickets += total_booked_tickets
-                            grand_total_gross += total_gross
-                            grand_booked_gross += booked_gross
-
-    grand_occupancy = (grand_total_booked_tickets / grand_total_max_seats * 100) if grand_total_max_seats > 0 else 0
-    
-    return {
-        "AreaName": area_name,
-        "ShowCount": total_show_count,
-        "FastFillingShows": fast_filling_show_count,
-        "SoldOutShows": sold_out_show_count,
-        "Occupancy": f"{grand_occupancy:.2f}%",
-        "BookedGross": grand_booked_gross,
-        "MaxCapacityGross": grand_total_gross,
-        "BookedTicketsCount": grand_total_booked_tickets,
-        "TotalTicketsCount": grand_total_max_seats
-    }
-
-# Function to fetch and process all showtimes
-def fetch_all_showtimes():
-    results = []
-    for city_name, city_config in CITIES.items():
-        logger.info(f"Fetching data for {city_name}")
-        data = fetch_showtimes(city_config)
-        if data:
-            result = process_showtime_data(city_name, data)
-            results.append(result)
-    
-    # Sort by occupancy
-    results.sort(key=lambda x: float(x["Occupancy"].strip("%")), reverse=True)
-    
-    # Calculate totals
-    totals = {
-        "AreaName": "OVERALL_TOTAL",
-        "ShowCount": sum(r["ShowCount"] for r in results),
-        "FastFillingShows": sum(r["FastFillingShows"] for r in results),
-        "SoldOutShows": sum(r["SoldOutShows"] for r in results),
-        "BookedGross": sum(r["BookedGross"] for r in results),
-        "MaxCapacityGross": sum(r["MaxCapacityGross"] for r in results),
-        "BookedTicketsCount": sum(r["BookedTicketsCount"] for r in results),
-        "TotalTicketsCount": sum(r["TotalTicketsCount"] for r in results),
-        "Occupancy": f"{(sum(r['BookedTicketsCount'] for r in results) / sum(r['TotalTicketsCount'] for r in results) * 100):.2f}%" if sum(r["TotalTicketsCount"] for r in results) > 0 else "0.00%"
-    }
-    
-    results.append(totals)
-    return results
+# Function to get last modified time of CSV file
+def get_file_last_modified(csv_path):
+    try:
+        if os.path.exists(csv_path):
+            mtime = os.path.getmtime(csv_path)
+            return datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
+        return "Unknown"
+    except Exception as e:
+        logger.error(f"Error getting file modification time: {e}")
+        return "Unknown"
 
 # Main dashboard
 def main():
+    # Path to the CSV file (adjust as needed)
+    CSV_PATH = "./movie_analytics_ET00410905.csv"
+    
     st.title(":red[Movie Analytics Dashboard]")
-    st.markdown(f"**Last Updated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} (Updates every 30 minutes)")
+    last_modified = get_file_last_modified(CSV_PATH)
+    st.markdown(f"**Last Updated:** {last_modified} (Updates every hour)")
 
     # --- Key Metrics Section ---
     st.header(":orange[Key Metrics]")
-    # Fetch data
-    with st.spinner("Fetching latest showtime data..."):
-        results = fetch_all_showtimes()
     
-    if not results:
-        st.error("Failed to fetch data. Please try again later.")
+    # Load data
+    with st.spinner("Loading analytics data..."):
+        df = load_csv_data(CSV_PATH)
+    
+    if df is None:
+        st.error("Failed to load data. Please ensure the CSV file is available and correctly formatted.")
         return
 
-    # Convert to DataFrame
-    df = pd.DataFrame(results)
-    
     cols = st.columns(4)
     with cols[0]:
         st.markdown(f"<div class='metric-card'><h3>Total Shows</h3><p>{df.iloc[-1]['ShowCount']}</p></div>", unsafe_allow_html=True)
@@ -371,7 +242,7 @@ def main():
         mime="text/csv"
     )
 
-    # --- Movie Info Section ---
+    # --- Movie Info Section (unchanged) ---
     with st.container():
         cols = st.columns([1, 3])
         with cols[0]:
