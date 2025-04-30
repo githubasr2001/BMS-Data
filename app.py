@@ -167,8 +167,8 @@ def get_file_last_modified(csv_path):
 
 # Main dashboard
 def main():
-    # Path to the CSV file (adjust as needed)
-    CSV_PATH = "./movie_analytics_ET00410905.csv"
+    # Path to the CSV file
+    CSV_PATH = "./hit.csv"  # Updated to point to hit.csv in the same directory
     
     st.title(":red[Movie Analytics Dashboard]")
     last_modified = get_file_last_modified(CSV_PATH)
@@ -238,7 +238,7 @@ def main():
     st.download_button(
         label="Download Analytics as CSV",
         data=csv,
-        file_name="movie_analytics_ET00410905.csv",
+        file_name="hit.csv",  # Updated to match the input file name
         mime="text/csv"
     )
 
@@ -254,7 +254,9 @@ def main():
                     <div class='movie-title'>HIT: The Third Case (HIT 3)</div>
                     <div class='movie-desc'>
                         <b>Genre:</b> Action, Thriller<br>
-                        <b>Description:</b> \"HIT: The Third Case\" (also known as \"HIT 3\") is a Telugu action thriller film starring Nani as cop Arjun Sarkaar, who is assigned a high-priority case in Jammu and Kashmir to catch a group of serial killers. The film, directed by Sailesh Kolanu, explores the dark side of the criminal world and Arjun's bloody quest for justice.
+                        <b>Description:</b> \"HIT: The Third Case\" (also known as \"HIT 3\") is a Telugu action thriller film starring Nani as cop Arjun Sarkaar, who is assigned a high-priority case in Jammu and Kashmir to catch a group of serial killers. The film
+
+System: directed by Sailesh Kolanu, explores the dark side of the criminal world and Arjun's bloody quest for justice.
                     </div>
                     <div class='movie-section-title'>Main Cast</div>
                     <div class='movie-castcrew'>
