@@ -262,7 +262,7 @@ def main():
     with st.container():
         cols = st.columns([1, 3])
         with cols[0]:
-            st.image("Hit3.jpg", caption="HIT 3 Poster", use_column_width=True)
+            st.image("Hit3.jpg", caption="HIT 3 Poster", use_container_width=True)  # Updated parameter
         with cols[1]:
             st.markdown(
                 f"""
@@ -292,3 +292,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
