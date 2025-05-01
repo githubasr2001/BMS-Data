@@ -1,0 +1,13 @@
+AreaName,TotalShows,FastFillingShows,SoldOutShows,SoldOutTickets,BookedGross,Occupancy
+hyderabad,533,75,393,143175,38266905.00,78.73%
+nellore,12,6,4,1118,668792.00,72.61%
+guntur,20,9,9,2104,599929.00,70.08%
+vizag-visakhapatnam,145,43,65,21134,6913493.00,67.95%
+warangal,30,18,4,2081,1762565.00,67.42%
+kakinada,16,5,5,270,660775.00,66.68%
+vijayawada,114,24,48,12109,4792198.00,57.27%
+bengaluru,343,87,109,21580,11742410.00,38.61%
+khammam,4,3,1,436,206315.00,36.10%
+nizamabad,10,5,3,324,232910.00,21.59%
+karimnagar,10,2,5,339,215665.00,19.85%
+TOTAL_ALL_REGIONS,1237,277,646,204670,66061957.00,0.00%
